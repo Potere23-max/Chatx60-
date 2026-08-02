@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Converso — Web Chat</title>
+
+  <meta name="theme-color" content="#6366f1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css?v=2">
+</head>
+<body>
+
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <!-- MODALE NICKNAME INITIALE -->
+  <div class="welcome-modal-overlay" id="welcomeModal">
+    <div class="welcome-card">
+      <div class="welcome-icon"><i class="fa-solid fa-comments"></i></div>
+      <h2>Ciao! Benvenuto su <span class="logo-accent">C</span>onverso</h2>
+      <p>Per iniziare a chattare, inserisci il tuo Nickname.</p>
+      <div class="welcome-input-group">
+        <i class="fa-solid fa-user"></i>
+        <input type="text" id="modalUsernameInput" placeholder="Es. Marco, Anna..." maxlength="20" onkeydown="if(event.key==='Enter') saveUsernameFromModal()">
+      </div>
+      <button class="welcome-btn" onclick="saveUsernameFromModal()">Entra in Chat <i class="fa-solid fa-arrow-right"></i></button>
+    </div>
+  </div>
+
+  <!-- MODALE STANZE PRIVATE -->
+  <div class="welcome-modal-overlay" id="privateRoomModal" style="display:none;">
+    <div class="welcome-card">
+      <button class="modal-close-btn" onclick="closePrivateModal()"><i class="fa-solid fa-xmark"></i></button>
+      <div class="welcome-icon"><i class="fa-solid fa-shield-halved"></i></div>
+      <h2>Stanze Private</h2>
+      <p>Crea una stanza o inserisci il PIN per accedere.</p>
+      <div class="private-modal-actions">
+        <button class="welcome-btn" onclick="showCreateRoomForm()">Crea Nuova Stanza <i class="fa-solid fa-plus"></i></button>
+        <button class="welcome-btn secondary-btn" onclick="showJoinRoomForm()">Entra in una Stanza <i class="fa-solid fa-key"></i></button>
+      </div>
+
+      <div id="createRoomForm" style="display:none; margin-top: 15px;">
+        <div class="welcome-input-group" style="margin-bottom:8px;">
+          <i class="fa-solid fa-font"></i>
+          <input type="text" id="newRoomName" placeholder="Nome della Stanza">
+        </div>
+        <div class="welcome-input-group">
+          <i class="fa-solid fa-lock"></i>
+          <input type="password" id="newRoomPin" placeholder="Imposta PIN / Password">
+        </div>
+        <button class="welcome-btn" style="margin-top:12px;" onclick="submitCreateRoom()">Conferma e Crea</button>
+      </div>
+
+      <div id="joinRoomForm" style="display:none; margin-top: 15px;">
+        <div class="welcome-input-group" style="margin-bottom:8px;">
+          <i class="fa-solid fa-font"></i>
+          <input type="text" id="joinRoomName" placeholder="Nome della Stanza">
+        </div>
+        <div class="welcome-input-group">
+          <i class="fa-solid fa-key"></i>
+          <input type="password" id="joinRoomPin" placeholder="Inserisci PIN">
+        </div>
+        <button class="welcome-btn" style="margin-top:12px;" onclick="submitJoinRoom()">Accedi alla Stanza</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LAYOUT PRINCIPALE -->
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-top">
+          <h1 class="logo"><span class="logo-accent">C</span>onverso</h1>
+          <button class="exit-btn" onclick="logoutUser()" title="Esci / Disconnetti">
+            <i class="fa-solid fa-right-from-bracket"></i> Esci
+          </button>
+        </div>
+        <div class="user-profile-badge" id="userBadge">
+          <i class="fa-solid fa-circle-user"></i>
+          <span id="myUsernameDisplay">Anonimo</span>
+        </div>
+      </div>
+      <div class="contact-list" id="contactList"></div>
+      <div class="sidebar-footer">
+        <button class="add-room-btn" onclick="openPrivateModal()">
+          <i class="fa-solid fa-lock"></i> Stanze Private
+        </button>
+      </div>
+    </aside>
+
+    <main class="chat-area" id="chatArea">
+      <div class="empty-state" id="emptyState">
+        <i class="fa-regular fa-comments empty-icon"></i>
+        <p class="empty-title">Seleziona una Stanza</p>
+        <p class="empty-subtitle">Scegli la Stanza Pubblica o una Stanza Privata dal menu.</p>
+      </div>
+
+      <div class="chat-active" id="chatActive">
+        <header class="chat-header">
+          <button class="icon-btn mobile-back" onclick="goBack()" title="Chiudi Chat">
+            <i class="fa-solid fa-arrow-left"></i>
+          </button>
+          <div class="avatar">
+            <img src="" alt="" id="chatAvatarImg">
+            <span class="status-dot status-online"></span>
+          </div>
+          <div class="chat-header-info">
+            <h3 id="chatName">Stanza</h3>
+            <p id="chatStatus" class="chat-header-status">In Tempo Reale</p>
+          </div>
+          <button class="icon-btn close-chat-desktop" onclick="goBack()" title="Chiudi Chat">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </header>
+
+        <div class="messages-container" id="messagesContainer">
+          <div class="messages-list" id="messagesList"></div>
+        </div>
+
+        <div class="image-preview-bar" id="imagePreviewBar">
+          <div class="image-preview-wrapper">
+            <img id="previewImg" src="" alt="Anteprima">
+            <button class="preview-remove" onclick="clearMediaPreview()"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <p class="preview-hint" id="previewHint">Immagine pronta per l'invio</p>
+        </div>
+
+        <div class="chat-input-area">
+          <div class="input-row">
+            <button class="icon-btn" onclick="triggerFileSelect()" title="Allega foto">
+              <i class="fa-solid fa-paperclip"></i>
+            </button>
+
+            <button class="icon-btn" onclick="openCamera()" title="Scatta Foto">
+              <i class="fa-solid fa-camera"></i>
+            </button>
+
+            <textarea id="msgInput" class="msg-input" placeholder="Scrivi un messaggio..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this); toggleSendBtn()"></textarea>
+
+            <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
+              <i class="fa-solid fa-paper-plane"></i>
+            </button>
+          </div>
+
+          <input type="file" id="galleryInput" accept="image/*" style="display:none;" onchange="handleGalleryFiles(this.files)">
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- OVERLAY FOTOCAMERA (NUOVO ID E CLASSE UNICA PER AZZERARE IL VECCHIO CSS) -->
+  <div class="camera-modal-fullscreen" id="cameraOverlay" style="display: none !important;">
+    <div class="camera-container">
+      <div class="camera-header">
+        <button class="icon-btn" onclick="closeCamera()" aria-label="Chiudi camera">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <h4>Fotocamera Web</h4>
+        <div style="width:36px;"></div>
+      </div>
+      <div class="camera-viewport">
+        <video id="cameraVideo" autoplay playsinline muted></video>
+        <canvas id="cameraCanvas" style="display:none;"></canvas>
+      </div>
+      <div class="camera-controls">
+        <button class="camera-switch-btn" onclick="switchCamera()" title="Cambia Fotocamera">
+          <i class="fa-solid fa-camera-rotate"></i>
+        </button>
+        <button class="camera-shutter" onclick="capturePhoto()" title="Scatta Foto"></button>
+        <div style="width:45px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+  <script src="app.js?v=2"></script>
+
+</body>
+</html>
