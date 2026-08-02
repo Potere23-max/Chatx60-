@@ -1,11 +1,12 @@
-const CACHE_NAME = 'converso-v4';
+const CACHE_NAME = 'converso-v5';
 const urlsToCache = [
   './',
   './index.html',
   './styles.css',
   './app.js',
   './manifest.json',
-  './icon.png'
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {

@@ -29,6 +29,14 @@ let cameraStream = null;
 let currentFacingMode = "user";
 let currentBase64Image = "";
 
+// REGISTRAZIONE SERVICE WORKER (necessaria per l'installazione PWA vera)
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js")
+      .catch((err) => console.error("Registrazione Service Worker fallita:", err));
+  });
+}
+
 // AVVIO APP
 window.addEventListener("DOMContentLoaded", () => {
   renderRoomsList();
