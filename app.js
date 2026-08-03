@@ -79,6 +79,10 @@ function saveUsernameFromModal() {
     document.getElementById("myUsernameDisplay").innerText = currentUsername;
     document.getElementById("welcomeModal").style.display = "none";
     startPresence();
+    // Sblocco l'audio qui: è la prima interazione certa dell'utente con la pagina
+    if (!notifAudioCtx) {
+      notifAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
   }
 }
 
@@ -206,6 +210,34 @@ function startDm(otherUsername) {
 }
 
 // ============================================
+// SUONO DI NOTIFICA — generato al volo, nessun file audio necessario
+// ============================================
+let notifAudioCtx = null;
+
+function playNotificationSound() {
+  try {
+    if (!notifAudioCtx) {
+      notifAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (notifAudioCtx.state === "suspended") {
+      notifAudioCtx.resume();
+    }
+    const osc = notifAudioCtx.createOscillator();
+    const gain = notifAudioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(notifAudioCtx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, notifAudioCtx.currentTime);
+    gain.gain.setValueAtTime(0.25, notifAudioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, notifAudioCtx.currentTime + 0.35);
+    osc.start();
+    osc.stop(notifAudioCtx.currentTime + 0.35);
+  } catch (e) {
+    console.error("Suono di notifica non disponibile:", e);
+  }
+}
+
+// ============================================
 // NOTIFICHE IN-APP — pallino rosso per messaggi non letti
 // (funziona solo con l'app aperta, non è una vera notifica push)
 // ============================================
@@ -227,11 +259,15 @@ function ensureUnreadListener(roomId) {
   if (unreadListenerRefs[roomId]) return;
   const ref = db.ref(`rooms/${roomId}/messages`).limitToLast(1);
   unreadListenerRefs[roomId] = ref;
+  let firstFire = true;
 
   ref.on("value", (snapshot) => {
     let lastMsg = null;
     snapshot.forEach((child) => { lastMsg = child.val(); });
-    if (!lastMsg || !lastMsg.timestamp) return;
+    if (!lastMsg || !lastMsg.timestamp) {
+      firstFire = false;
+      return;
+    }
 
     const seenUntil = getLastSeen(roomId);
     const isFromOther = lastMsg.sender !== currentUsername;
@@ -241,7 +277,11 @@ function ensureUnreadListener(roomId) {
     if (isFromOther && isNew && !isCurrentlyOpen) {
       unreadRoomIds.add(roomId);
       renderRoomsList();
+      // Il suono suona solo per messaggi arrivati davvero ora,
+      // non per quelli già esistenti al primo caricamento della lista
+      if (!firstFire) playNotificationSound();
     }
+    firstFire = false;
   });
 }
 
