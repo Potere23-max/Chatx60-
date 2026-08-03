@@ -33,6 +33,8 @@ let cleanupInterval = null;
 let onlineUsersRef = null;
 let myDmRoomsRef = null;
 let dmRoomsCache = [];
+let unreadListenerRefs = {};
+let unreadRoomIds = new Set();
 let cameraStream = null;
 let currentFacingMode = "user";
 let currentBase64Image = "";
@@ -204,6 +206,46 @@ function startDm(otherUsername) {
 }
 
 // ============================================
+// NOTIFICHE IN-APP — pallino rosso per messaggi non letti
+// (funziona solo con l'app aperta, non è una vera notifica push)
+// ============================================
+function getLastSeenMap() {
+  return JSON.parse(localStorage.getItem("converso_lastSeen") || "{}");
+}
+
+function getLastSeen(roomId) {
+  return getLastSeenMap()[roomId] || 0;
+}
+
+function setLastSeen(roomId, ts) {
+  const map = getLastSeenMap();
+  map[roomId] = ts;
+  localStorage.setItem("converso_lastSeen", JSON.stringify(map));
+}
+
+function ensureUnreadListener(roomId) {
+  if (unreadListenerRefs[roomId]) return;
+  const ref = db.ref(`rooms/${roomId}/messages`).limitToLast(1);
+  unreadListenerRefs[roomId] = ref;
+
+  ref.on("value", (snapshot) => {
+    let lastMsg = null;
+    snapshot.forEach((child) => { lastMsg = child.val(); });
+    if (!lastMsg || !lastMsg.timestamp) return;
+
+    const seenUntil = getLastSeen(roomId);
+    const isFromOther = lastMsg.sender !== currentUsername;
+    const isNew = lastMsg.timestamp > seenUntil;
+    const isCurrentlyOpen = roomId === activeRoomId;
+
+    if (isFromOther && isNew && !isCurrentlyOpen) {
+      unreadRoomIds.add(roomId);
+      renderRoomsList();
+    }
+  });
+}
+
+// ============================================
 // GESTIONE STANZE — Pubblica + Private (elenco locale per utente)
 // ============================================
 function getMyRooms() {
@@ -226,12 +268,15 @@ function renderRoomsList() {
   const contactList = document.getElementById("contactList");
   const allRooms = [PUBLIC_ROOM, ...getMyRooms(), ...dmRoomsCache];
 
+  allRooms.forEach(room => ensureUnreadListener(room.id));
+
   contactList.innerHTML = allRooms.map(room => {
     const safeName = escapeHtml(room.name);
     const seed = encodeURIComponent(room.name);
     const isActive = activeRoomId === room.id ? "active" : "";
     const isDm = room.id.startsWith("dm-");
     const subtitle = room.id === PUBLIC_ROOM.id ? "Stanza pubblica" : (isDm ? "Messaggio privato" : "Stanza privata");
+    const unreadDot = unreadRoomIds.has(room.id) ? '<span class="unread-dot"></span>' : '';
     return `
       <div class="contact-item ${isActive}" onclick="selectRoom('${room.id}')">
         <div class="avatar">
@@ -239,7 +284,7 @@ function renderRoomsList() {
           <span class="status-dot"></span>
         </div>
         <div class="contact-info">
-          <div class="contact-name">${safeName}</div>
+          <div class="contact-name">${safeName}${unreadDot}</div>
           <div class="contact-preview">${subtitle}</div>
         </div>
       </div>
@@ -257,6 +302,9 @@ function selectRoom(roomId) {
 
   activeRoomId = room.id;
   activeRoomName = room.name;
+
+  setLastSeen(roomId, Date.now());
+  unreadRoomIds.delete(roomId);
 
   document.getElementById("chatName").innerText = room.name;
   document.getElementById("chatAvatarImg").src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(room.name)}`;
