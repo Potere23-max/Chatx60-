@@ -317,8 +317,33 @@ html, body {
   gap: 10px;
 }
 
+.msg-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.msg-row.row-sent {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.msg-row.row-received {
+  align-self: flex-start;
+  flex-direction: row;
+}
+
+.msg-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--card-bg);
+}
+
 .message {
-  max-width: 80%;
+  max-width: 70vw;
   padding: 10px 14px;
   border-radius: 12px;
   font-size: 0.95rem;
@@ -327,14 +352,12 @@ html, body {
 }
 
 .msg-sent {
-  align-self: flex-end;
   background: var(--accent);
   color: white;
   border-bottom-right-radius: 2px;
 }
 
 .msg-received {
-  align-self: flex-start;
   background: var(--card-bg);
   color: var(--text-main);
   border-bottom-left-radius: 2px;

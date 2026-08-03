@@ -414,11 +414,20 @@ function deleteMessage(roomId, key) {
 function appendMessageToDOM(msg, roomId, key) {
   const messagesList = document.getElementById("messagesList");
   const isMe = msg.sender === currentUsername;
+  const senderName = msg.sender || "Anonimo";
+
+  const row = document.createElement("div");
+  row.className = `msg-row ${isMe ? 'row-sent' : 'row-received'}`;
+
+  const avatar = document.createElement("img");
+  avatar.className = "msg-avatar";
+  avatar.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(senderName)}`;
+  avatar.alt = escapeHtml(senderName);
 
   const div = document.createElement("div");
   div.className = `message ${isMe ? 'msg-sent' : 'msg-received'}`;
 
-  let content = `<div class="msg-sender">${escapeHtml(msg.sender || 'Anonimo')}</div>`;
+  let content = `<div class="msg-sender">${escapeHtml(senderName)}</div>`;
   if (isMe) {
     content += `<button class="msg-delete-btn" onclick="deleteMessage('${roomId}','${key}')" title="Elimina messaggio"><i class="fa-solid fa-trash"></i></button>`;
   }
@@ -427,7 +436,9 @@ function appendMessageToDOM(msg, roomId, key) {
   content += `<div class="msg-meta">${escapeHtml(msg.time || '')}</div>`;
 
   div.innerHTML = content;
-  messagesList.appendChild(div);
+  row.appendChild(avatar);
+  row.appendChild(div);
+  messagesList.appendChild(row);
 }
 
 function sendMessage() {
