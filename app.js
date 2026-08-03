@@ -31,6 +31,8 @@ let activeRoomRef = null; // riferimento Firebase con listener attivo (per poter
 let presenceInterval = null;
 let cleanupInterval = null;
 let onlineUsersRef = null;
+let myDmRoomsRef = null;
+let dmRoomsCache = [];
 let cameraStream = null;
 let currentFacingMode = "user";
 let currentBase64Image = "";
@@ -112,11 +114,26 @@ function startPresence() {
   presenceInterval = setInterval(updatePresence, 20000);
 
   cleanupInterval = setInterval(sweepOldMessagesInActiveRoom, 5 * 60 * 1000);
+
+  // Ascolto le chat private che qualcuno ha avviato con me, così mi compaiono
+  // in sidebar da sole, senza dover aprire io stesso "Messaggi Privati"
+  myDmRoomsRef = db.ref(`userRooms/${currentUserKey}`);
+  myDmRoomsRef.on("value", (snapshot) => {
+    dmRoomsCache = [];
+    snapshot.forEach((child) => {
+      const data = child.val();
+      if (data && data.name) {
+        dmRoomsCache.push({ id: child.key, name: data.name });
+      }
+    });
+    renderRoomsList();
+  });
 }
 
 function stopPresence() {
   if (presenceInterval) clearInterval(presenceInterval);
   if (cleanupInterval) clearInterval(cleanupInterval);
+  if (myDmRoomsRef) myDmRoomsRef.off();
   if (currentUserKey) {
     db.ref(`presence/${currentUserKey}`).remove();
   }
@@ -175,7 +192,13 @@ function escapeAttr(str) {
 
 function startDm(otherUsername) {
   const roomId = dmRoomId(currentUsername, otherUsername);
-  addRoomToMyList(roomId, otherUsername);
+  const otherKey = roomNameToId(otherUsername);
+
+  // Registro la stanza sia per me che per l'altra persona: così le compare
+  // in automatico in sidebar, senza che debba cercarmi lei stessa
+  db.ref(`userRooms/${currentUserKey}/${roomId}`).set({ name: otherUsername });
+  db.ref(`userRooms/${otherKey}/${roomId}`).set({ name: currentUsername });
+
   closeDmModal();
   selectRoom(roomId);
 }
@@ -201,7 +224,7 @@ function addRoomToMyList(roomId, name) {
 
 function renderRoomsList() {
   const contactList = document.getElementById("contactList");
-  const allRooms = [PUBLIC_ROOM, ...getMyRooms()];
+  const allRooms = [PUBLIC_ROOM, ...getMyRooms(), ...dmRoomsCache];
 
   contactList.innerHTML = allRooms.map(room => {
     const safeName = escapeHtml(room.name);
@@ -225,7 +248,7 @@ function renderRoomsList() {
 }
 
 function findRoomById(roomId) {
-  return [PUBLIC_ROOM, ...getMyRooms()].find(r => r.id === roomId);
+  return [PUBLIC_ROOM, ...getMyRooms(), ...dmRoomsCache].find(r => r.id === roomId);
 }
 
 function selectRoom(roomId) {
