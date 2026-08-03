@@ -20,11 +20,17 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 const PUBLIC_ROOM = { id: "generale", name: "Stanza Generale" };
+const MESSAGE_TTL_MS = 12 * 60 * 60 * 1000; // i messaggi vengono eliminati dopo 12 ore
+const PRESENCE_TTL_MS = 60 * 1000; // un utente è considerato "online" se visto negli ultimi 60s
 
 let currentUsername = "";
+let currentUserKey = "";
 let activeRoomId = PUBLIC_ROOM.id;
 let activeRoomName = PUBLIC_ROOM.name;
 let activeRoomRef = null; // riferimento Firebase con listener attivo (per poterlo staccare)
+let presenceInterval = null;
+let cleanupInterval = null;
+let onlineUsersRef = null;
 let cameraStream = null;
 let currentFacingMode = "user";
 let currentBase64Image = "";
@@ -37,6 +43,12 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+window.addEventListener("beforeunload", () => {
+  if (currentUserKey) {
+    db.ref(`presence/${currentUserKey}`).remove();
+  }
+});
+
 // AVVIO APP
 window.addEventListener("DOMContentLoaded", () => {
   renderRoomsList();
@@ -46,6 +58,7 @@ window.addEventListener("DOMContentLoaded", () => {
     currentUsername = savedUser;
     document.getElementById("myUsernameDisplay").innerText = currentUsername;
     document.getElementById("welcomeModal").style.display = "none";
+    startPresence();
   } else {
     document.getElementById("welcomeModal").style.display = "flex";
   }
@@ -61,10 +74,12 @@ function saveUsernameFromModal() {
     sessionStorage.setItem("converso_user", currentUsername);
     document.getElementById("myUsernameDisplay").innerText = currentUsername;
     document.getElementById("welcomeModal").style.display = "none";
+    startPresence();
   }
 }
 
 function logoutUser() {
+  stopPresence();
   sessionStorage.removeItem("converso_user");
   location.reload();
 }
@@ -76,6 +91,93 @@ function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str == null ? "" : String(str);
   return div.innerHTML;
+}
+
+// ============================================
+// PRESENZA UTENTI — necessaria per sapere chi è online per i Messaggi Privati
+// ============================================
+function startPresence() {
+  currentUserKey = roomNameToId(currentUsername) || "utente";
+  const myPresenceRef = db.ref(`presence/${currentUserKey}`);
+
+  const updatePresence = () => {
+    myPresenceRef.set({
+      name: currentUsername,
+      lastSeen: firebase.database.ServerValue.TIMESTAMP
+    });
+  };
+
+  updatePresence();
+  myPresenceRef.onDisconnect().remove();
+  presenceInterval = setInterval(updatePresence, 20000);
+
+  cleanupInterval = setInterval(sweepOldMessagesInActiveRoom, 5 * 60 * 1000);
+}
+
+function stopPresence() {
+  if (presenceInterval) clearInterval(presenceInterval);
+  if (cleanupInterval) clearInterval(cleanupInterval);
+  if (currentUserKey) {
+    db.ref(`presence/${currentUserKey}`).remove();
+  }
+}
+
+// ============================================
+// MESSAGGI PRIVATI (DM) — chat 1 a 1 tra due utenti
+// ============================================
+function dmRoomId(userA, userB) {
+  const keys = [roomNameToId(userA), roomNameToId(userB)].sort();
+  return `dm-${keys[0]}-${keys[1]}`;
+}
+
+function openDmModal() {
+  document.getElementById("dmModal").style.display = "flex";
+  db.ref("presence").once("value").then(renderOnlineUsersList);
+  onlineUsersRef = db.ref("presence");
+  onlineUsersRef.on("value", renderOnlineUsersList);
+}
+
+function closeDmModal() {
+  document.getElementById("dmModal").style.display = "none";
+  if (onlineUsersRef) {
+    onlineUsersRef.off();
+    onlineUsersRef = null;
+  }
+}
+
+function renderOnlineUsersList(snapshot) {
+  const container = document.getElementById("onlineUsersList");
+  const now = Date.now();
+  const users = [];
+  snapshot.forEach((child) => {
+    const data = child.val();
+    if (child.key !== currentUserKey && data && data.lastSeen && (now - data.lastSeen) < PRESENCE_TTL_MS + 25000) {
+      users.push({ key: child.key, name: data.name });
+    }
+  });
+
+  if (users.length === 0) {
+    container.innerHTML = '<p class="dm-empty-hint">Nessun altro utente online al momento.</p>';
+    return;
+  }
+
+  container.innerHTML = users.map(u => `
+    <div class="online-user-item" onclick="startDm('${escapeAttr(u.name)}')">
+      <img src="https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.name)}" alt="${escapeHtml(u.name)}">
+      <span class="online-user-name">${escapeHtml(u.name)}</span>
+    </div>
+  `).join("");
+}
+
+function escapeAttr(str) {
+  return String(str).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+}
+
+function startDm(otherUsername) {
+  const roomId = dmRoomId(currentUsername, otherUsername);
+  addRoomToMyList(roomId, otherUsername);
+  closeDmModal();
+  selectRoom(roomId);
 }
 
 // ============================================
@@ -105,7 +207,8 @@ function renderRoomsList() {
     const safeName = escapeHtml(room.name);
     const seed = encodeURIComponent(room.name);
     const isActive = activeRoomId === room.id ? "active" : "";
-    const subtitle = room.id === PUBLIC_ROOM.id ? "Stanza pubblica" : "Stanza privata";
+    const isDm = room.id.startsWith("dm-");
+    const subtitle = room.id === PUBLIC_ROOM.id ? "Stanza pubblica" : (isDm ? "Messaggio privato" : "Stanza privata");
     return `
       <div class="contact-item ${isActive}" onclick="selectRoom('${room.id}')">
         <div class="avatar">
@@ -163,15 +266,41 @@ function listenToMessages(roomId) {
 
   activeRoomRef.on("value", (snapshot) => {
     messagesList.innerHTML = "";
+    const now = Date.now();
     snapshot.forEach((child) => {
-      appendMessageToDOM(child.val());
+      const msg = child.val();
+      // Ignora (e rimuove) i messaggi più vecchi di 12 ore
+      if (msg.timestamp && (now - msg.timestamp) > MESSAGE_TTL_MS) {
+        db.ref(`rooms/${roomId}/messages/${child.key}`).remove();
+        return;
+      }
+      appendMessageToDOM(msg, roomId, child.key);
     });
     const container = document.getElementById("messagesContainer");
     container.scrollTop = container.scrollHeight;
   });
 }
 
-function appendMessageToDOM(msg) {
+function sweepOldMessagesInActiveRoom() {
+  if (!activeRoomId) return;
+  const now = Date.now();
+  db.ref(`rooms/${activeRoomId}/messages`).once("value").then((snapshot) => {
+    snapshot.forEach((child) => {
+      const msg = child.val();
+      if (msg.timestamp && (now - msg.timestamp) > MESSAGE_TTL_MS) {
+        db.ref(`rooms/${activeRoomId}/messages/${child.key}`).remove();
+      }
+    });
+  });
+}
+
+function deleteMessage(roomId, key) {
+  if (!confirm("Eliminare questo messaggio per tutti?")) return;
+  db.ref(`rooms/${roomId}/messages/${key}`).remove()
+    .catch((err) => alert("Errore nell'eliminazione: " + err.message));
+}
+
+function appendMessageToDOM(msg, roomId, key) {
   const messagesList = document.getElementById("messagesList");
   const isMe = msg.sender === currentUsername;
 
@@ -179,6 +308,9 @@ function appendMessageToDOM(msg) {
   div.className = `message ${isMe ? 'msg-sent' : 'msg-received'}`;
 
   let content = `<div class="msg-sender">${escapeHtml(msg.sender || 'Anonimo')}</div>`;
+  if (isMe) {
+    content += `<button class="msg-delete-btn" onclick="deleteMessage('${roomId}','${key}')" title="Elimina messaggio"><i class="fa-solid fa-trash"></i></button>`;
+  }
   if (msg.text) content += `<div>${escapeHtml(msg.text)}</div>`;
   if (msg.image) content += `<img src="${msg.image}" class="msg-image" onclick="window.open('${msg.image}')">`;
   content += `<div class="msg-meta">${escapeHtml(msg.time || '')}</div>`;
