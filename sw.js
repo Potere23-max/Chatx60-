@@ -1,4 +1,4 @@
-const CACHE_NAME = 'converso-v5';
+const CACHE_NAME = 'converso-v6';
 const urlsToCache = [
   './',
   './index.html',

@@ -191,6 +191,65 @@ html, body {
   border: 1px solid var(--border-color);
 }
 
+.online-users-list {
+  margin-top: 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.online-user-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.online-user-item:hover {
+  background: var(--card-bg);
+}
+
+.online-user-item img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+
+.online-user-item .online-user-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.dm-empty-hint {
+  font-size: 0.85rem;
+  opacity: 0.6;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.msg-delete-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  position: absolute;
+  top: 4px;
+  right: 6px;
+}
+
+.msg-delete-btn:hover {
+  color: #ff5c5c;
+}
+
+.message {
+  position: relative;
+}
+
 /* CHAT AREA */
 .chat-area {
   flex: 1;

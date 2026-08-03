@@ -14,7 +14,7 @@
 
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <link rel="stylesheet" href="styles.css?v=2">
+  <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
 
@@ -73,6 +73,19 @@
     </div>
   </div>
 
+  <!-- MODALE MESSAGGI PRIVATI (1 a 1) -->
+  <div class="welcome-modal-overlay" id="dmModal" style="display:none;">
+    <div class="welcome-card">
+      <button class="modal-close-btn" onclick="closeDmModal()"><i class="fa-solid fa-xmark"></i></button>
+      <div class="welcome-icon"><i class="fa-solid fa-user-secret"></i></div>
+      <h2>Messaggi Privati</h2>
+      <p>Utenti online in questo momento. Tocca un nome per scrivergli in privato.</p>
+      <div id="onlineUsersList" class="online-users-list">
+        <p class="dm-empty-hint">Nessun altro utente online al momento.</p>
+      </div>
+    </div>
+  </div>
+
   <!-- LAYOUT PRINCIPALE -->
   <div class="layout">
     <aside class="sidebar" id="sidebar">
@@ -90,6 +103,9 @@
       </div>
       <div class="contact-list" id="contactList"></div>
       <div class="sidebar-footer">
+        <button class="add-room-btn" onclick="openDmModal()">
+          <i class="fa-solid fa-user-secret"></i> Messaggi Privati
+        </button>
         <button class="add-room-btn" onclick="openPrivateModal()">
           <i class="fa-solid fa-lock"></i> Stanze Private
         </button>
@@ -182,7 +198,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 
 </body>
 </html>
